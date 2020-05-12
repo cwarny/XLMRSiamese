@@ -61,25 +61,30 @@ class CustomTokenizeProcessor(TokenizeProcessor):
         return self.tokenizer(items)['input_ids']
 
 if args.sample:
+    # Train on a sample of the full training data.
+    # This is for fast iteration or hyperparam tuning.
     import pandas as pd
-    n = sum(1 for line in open(args.input))
-    s = args.sample
-    skip = sorted(random.sample(range(1,n+1),n-s))
+    n = sum(1 for line in open(args.input)) # Get total number of training examples
+    s = args.sample # Desired sample size
+    skip = sorted(random.sample(range(n),n-s)) # Skip a random sample of n-s examples with pandas' read_csv method
     df = pd.read_csv(args.input, skiprows=skip, names=['source_text', 'source_lang', 'source_title', 'target_text', 'target_lang', 'target_title'], sep='\t')
     dataset = TabularDataset.from_df(df)
 else:
     dataset = TabularDataset.from_csv(args.input, names=['source_text', 'source_lang', 'source_title', 'target_text', 'target_lang', 'target_title'])
 
+# Processors are applied to fields in the tabular dataset
 tok = CustomTokenizeProcessor(partial(tokenizer.batch_encode_plus, add_special_tokens=True, max_length=512, return_token_type_ids=False))
+# The mask processor will return tuples of masked input (where 15% of tokens are either masked or swapped out) 
+# and target output where unmasked tokens are ignored
 mask = MaskProcessor(tokenizer.mask_token_id, tokenizer.vocab_size)
 lang_vocab = list(set(dataset.df['source_lang'].unique().tolist()+dataset.df['target_lang'].tolist())) # Share vocab between source and target langs
 cat = CategoryProcessor(vocab=lang_vocab, min_freq=0)
 
 proc_x = {
-    'source_text': [tok,mask],
-    'target_text': [tok,mask],
-    'source_lang': cat,
-    'target_lang': cat
+    'source_text': [tok,mask], # tokenize and mask source text
+    'target_text': [tok,mask], # tokenize and mask source text
+    'source_lang': cat, # convert source langs to integers
+    'target_lang': cat # convert target langs to integers
 }
 
 def pad_collate(samples, pad_idx=1, ignore_index=-100, dtype=torch.int64):
@@ -129,6 +134,7 @@ class MultinomialSampler(Sampler):
     def __iter__(self): return iter(self.idxs)
 
 if args.reload_from_files:
+    # Reload from already processed data
     with open(path/'data.json') as i: 
         data = DataBunch.from_serializable( \
             json.load(i), \
@@ -150,12 +156,18 @@ else:
             train_sampler=MultinomialSampler, valid_sampler=SequentialSampler \
         )
 
-    with open(path/'data.json', 'w') as o: json.dump(data.to_serializable(), o)
+    with open(path/'data.json', 'w') as o: 
+        json.dump(data.to_serializable(), o) # Save processed data
 
 # Instantiate model
 model = XLMRobertaSiamese(model_name=args.encoder_name, pad_ix=tokenizer.pad_token_id)
 if device_count > 1: model = nn.DataParallel(model)
 
+# A callback needs to overwrite methods that will be called at specific moments in the 
+# training loop. In this case, the callback will be called at the beginning of the batch (`begin_batch`).
+# The callback has access to any object defined in the training loop via `self.<object name>`.
+# Here, at the beginning of the batch, we have access to `self.xb` and `self.yb` which are, respectively,
+# the input batch tensor and target batch tensor
 class FetchHardestNegatives(Callback):
     '''
     This callback will be called at the beginning of each batch.
@@ -164,6 +176,11 @@ class FetchHardestNegatives(Callback):
     and line up those hardest negatives with the anchor-pos pairs to get the triples
     '''
     def __init__(self, x_p, y_p, lengths, neg_batch_size=16):
+        '''
+        `x_p` is the tensor of all translations (masked)
+        `y_p` is the corresponding target tensor (with the expected values behind the masks and ignoring the rest)
+        We will randomly pick values from these tensors to create the negative examples for the triples
+        '''
         self.x_p, self.y_p = x_p, y_p
         self.lengths = lengths
         self.neg_batch_size = neg_batch_size
@@ -192,13 +209,21 @@ class FetchHardestNegatives(Callback):
         self.run.xb = (xb_a,xb_p,xb_n)
         self.run.yb = (*self.yb,yb_n) # Add neg targets for MLM
 
-X_p, Y_p = zip(*compose(dataset.df['target_text'], [tok,mask])) # idem for pos seqs
+# Here we process all the target texts and save them to variables `x_p` and `y_p`
+# to be used by the FetchHardestNegatives callback
+X_p, Y_p = zip(*compose(dataset.df['target_text'], [tok,mask]))
 x_p = pad_sequence(list(map(torch.LongTensor, X_p)), batch_first=True, padding_value=tokenizer.pad_token_id)
 y_p = pad_sequence(list(map(torch.LongTensor, Y_p)), batch_first=True, padding_value=-100)
 lengths = torch.LongTensor(list(map(len, Y_p)))
 
-ce = nn.CrossEntropyLoss()
+# Here we define `mlm_loss`, `_triplet_loss`, `_seq_acc`, and `_perplexity` as arbitrary metrics
+# to track during training. 
+# Tracking `mlm_loss` and `_triplet_loss` is to eyeball the range of 
+# mlm loss v triplet loss in order to calibrate λ. 
+# Tracking `_seq_acc` and `_perplexity` is to get a sense of the accuracy improvement of the model
+# during training.
 
+ce = nn.CrossEntropyLoss()
 def mlm_loss(outp, target):
     logits, reps = outp
     vocab_size = logits[0].size(-1)
@@ -218,6 +243,7 @@ def _perplexity(outp, target):
     logits, reps = outp
     return sum(map(lambda e: perplexity(e[0], e[1]), zip(logits, target)))/len(logits)
 
+# Here we define all the callbacks that will be called during the training loop
 cbfs = [
     partial(FetchHardestNegatives, x_p, y_p, lengths, neg_batch_size=args.neg_batch_size),
     partial(AvgStatsCallback, [_seq_acc, _perplexity, mlm_loss, _triplet_loss], path=path/'metrics.tsv'),
@@ -226,8 +252,9 @@ cbfs = [
     EarlyStop
 ]
 
-opt = partial(Adam, lr=args.learning_rate)
-loss_func = SiameseLoss(λ=args.lambda_weight, margin=args.margin)
+opt = partial(Adam, lr=args.learning_rate) # Good old Adam optimizer
+loss_func = SiameseLoss(λ=args.lambda_weight, margin=args.margin) # Loss to backprop on
+# Learner object, which implements the training loop and calls all the callbacks
 learn = Learner(model, data, loss_func, lr=args.learning_rate, cb_funcs=cbfs, opt_func=opt)
 
 print('Training model on {device_count} {device_type}(s)'.format(device_count=device_count, device_type=device))
