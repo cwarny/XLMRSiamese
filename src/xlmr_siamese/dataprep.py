@@ -31,34 +31,13 @@ for x in parallel_data.iterdir():
                 df['target_title'] = title
                 dfs.append(df) # Collect all the corpora into a single data frame
 
-pos_pairs = pd.concat(dfs, 0, sort=False) # This data frame contains only positive pairs
-pos_pairs = pos_pairs[(pos_pairs.source_lang!='nl') & (pos_pairs.target_lang!='nl')] # Remove Dutch as we are not interested in it
-pos_pairs['pair_type'] = 'pos'
-pos_pairs = pos_pairs.sample(frac=1) # Give it a good shuffle
-
-# To create negative pairs, we first stack source and target translations into a single data frame, losing the pairing
-sources = pos_pairs[['source_text','source_lang','source_title']].rename(columns={'source_text':'text', 'source_lang':'lang', 'source_title':'title'})
-targets = pos_pairs[['target_text','target_lang','target_title']].rename(columns={'target_text':'text', 'target_lang':'lang', 'target_title':'title'})
-unpaired = pd.concat([sources,targets], 0).drop_duplicates()
-
-# Now we take the cartesian product of all languages and randomly pair sentences from one language to the other (including the same language)
-neg_pairs = []
-for lang1,g1 in unpaired.groupby('lang'):
-    for lang2,g2 in unpaired.groupby('lang'):
-        g1 = g1.sample(frac=1).rename(columns={'text':'source_text','lang':'source_lang','title':'source_title'}).reset_index(drop=True)
-        g2 = g2.sample(frac=1).rename(columns={'text':'target_text','lang':'target_lang','title':'target_title'}).reset_index(drop=True)
-        neg_pairs.append(pd.concat([g1,g2], 1, join='inner')) # 'inner' here simply means if there are less sentences in lang1 than in lang2, then we only pair them up to the size of lang1
-
-neg_pairs = pd.concat(neg_pairs, 0, sort=False)
-neg_pairs['pair_type'] = 'neg'
+pairs = pd.concat(dfs, 0, sort=False) # This data frame contains only positive pairs
+pairs = pairs[(pairs.source_lang!='nl') & (pairs.target_lang!='nl')] # Remove Dutch as we are not interested in it
+pairs = pairs.sample(frac=1) # Give it a good shuffle
 
 # Split between train and test sets for positive pairs only (we don't care about performing well on negative pairs). We stratify by language pairs and corpus title
-pos_pairs_train, pos_pairs_test = train_test_split(pos_pairs, train_size=1-args.test_proportion, stratify=pos_pairs.apply(lambda row: '~'.join([row['source_lang'],row['target_lang'],row['source_title'],row['target_title']]),1))
-
-# Give it one last good shuffle
-train = pd.concat([pos_pairs_train, neg_pairs], 0, sort=False).sample(frac=1)
-test = pos_pairs_test.sample(frac=1)
+pairs_train, pairs_test = train_test_split(pairs, train_size=1-args.test_proportion, stratify=pairs.apply(lambda row: '~'.join([row['source_lang'],row['target_lang'],row['source_title'],row['target_title']]),1))
 
 out_dir = Path(args.output_dir)
-train.to_csv(out_dir/'train.tsv', columns=['source_text','source_lang','source_title','target_text','target_lang','target_title','pair_type'], index=False, header=False, sep='\t')
-test.to_csv(out_dir/'test.tsv', columns=['source_text','source_lang','source_title','target_text','target_lang','target_title','pair_type'], index=False, header=False, sep='\t')
+pairs_train.to_csv(out_dir/'train.tsv', columns=['source_text','source_lang','source_title','target_text','target_lang','target_title'], index=False, header=False, sep='\t')
+pairs_test.to_csv(out_dir/'test.tsv', columns=['source_text','source_lang','source_title','target_text','target_lang','target_title'], index=False, header=False, sep='\t')

@@ -1,11 +1,6 @@
 # XLMRSiamese
 
-Extension of XLM-R with Siamese network and distance-based loss.
-
-## Documentation
-
-Generated documentation for the latest released version can be accessed here:
-https://devcentral.amazon.com/ac/brazil/package-master/package/go/documentation?name=XLMRSiamese&interface=1.0&versionSet=live
+Extension of XLM-R with Siamese network and distance-based loss. See [experiments wiki](https://wiki.labcollab.net/confluence/display/Doppler/Siamese+XLM-R+for+multilingual+ZSL) for more info.
 
 ## Data
 
