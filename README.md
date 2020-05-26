@@ -8,6 +8,7 @@ Extension of XLM-R with Siamese network and distance-based loss. See [experiment
 * `pip install --no-index --find-links=file:/home/ec2-user/workspaces/hoverboard-workspaces/src/transformers transformers`
 * `mkdir -p ~/.cache/torch; cp -r $WS/transformers_data ~/.cache/torch/transformers`
 * `cd $WS/DeeperNlu; python setup.py install`
+* [optional] `cd $WS/apex; pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./`
 
 ## Data
 
@@ -16,7 +17,7 @@ Extension of XLM-R with Siamese network and distance-based loss. See [experiment
 
 ## Pre-train
 
-* `python pretrain.py`
+* `python pretrain.py -i data/processed/train.tsv`
 
 ## Train
 

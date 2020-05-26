@@ -13,8 +13,10 @@ class XLMRobertaSiamese(nn.Module):
         self.pad_ix = pad_ix
     
     def forward(self, x):
-        logits = list(map(lambda e: self.mlm(e)[0], x))
-        representations = list(map(lambda e: mean_encoded_seq_batch(self.mlm.roberta(e)[0], e, ignore_index=self.pad_ix), x)) # self.mlm.roberta is the RoBERTa encoder
+        representations = self.mlm.roberta(x)[0]
+        logits = self.mlm.lm_head(representations)
+        # representations = mean_encoded_seq_batch(representations, x, ignore_index=self.pad_ix)
+        representations = representations.mean(1)
         return logits, representations
 
 class XLMRobertaForIcAndNer(nn.Module):

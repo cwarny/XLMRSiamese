@@ -31,7 +31,7 @@ for x in parallel_data.iterdir():
                 df['target_title'] = title
                 dfs.append(df) # Collect all the corpora into a single data frame
 
-pairs = pd.concat(dfs, 0, sort=False) # This data frame contains only positive pairs
+pairs = pd.concat(dfs, 0) # This data frame contains only positive pairs
 pairs = pairs[(pairs.source_lang!='nl') & (pairs.target_lang!='nl')] # Remove Dutch as we are not interested in it
 pairs = pairs.sample(frac=1) # Give it a good shuffle
 
@@ -39,5 +39,6 @@ pairs = pairs.sample(frac=1) # Give it a good shuffle
 pairs_train, pairs_test = train_test_split(pairs, train_size=1-args.test_proportion, stratify=pairs.apply(lambda row: '~'.join([row['source_lang'],row['target_lang'],row['source_title'],row['target_title']]),1))
 
 out_dir = Path(args.output_dir)
+out_dir.mkdir(parents=True, exist_ok=True)
 pairs_train.to_csv(out_dir/'train.tsv', columns=['source_text','source_lang','source_title','target_text','target_lang','target_title'], index=False, header=False, sep='\t')
 pairs_test.to_csv(out_dir/'test.tsv', columns=['source_text','source_lang','source_title','target_text','target_lang','target_title'], index=False, header=False, sep='\t')
