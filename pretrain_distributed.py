@@ -25,13 +25,13 @@ from deeper_nlu.util import compose
 from deeper_nlu.train import Learner, AvgStatsCallback, CudaCallback, SaveModel, EarlyStop
 
 # Internal dependencies
-from .sampler import MultinomialSampler, DistributedSamplerWrapper
-from .loss import SiameseLoss
-from .model import XLMRobertaSiamese
-from .util import mean_encoded_seq_batch
-from .data import pad_collate
-from .callback import FetchHardestNegatives, FP16Callback, DistributedTrainingCallback
-from .metric import mlm_loss, _triplet_loss, _seq_acc, _perplexity
+from xlmr_siamese.sampler import MultinomialSampler, DistributedSamplerWrapper
+from xlmr_siamese.loss import SiameseLoss
+from xlmr_siamese.model import XLMRobertaSiamese
+from xlmr_siamese.util import mean_encoded_seq_batch
+from xlmr_siamese.data import pad_collate
+from xlmr_siamese.callback import FetchHardestNegatives, FP16Callback, DistributedTrainingCallback
+from xlmr_siamese.metric import mlm_loss, _triplet_loss, _seq_acc, _perplexity
 
 def parse_args():
     parser = argparse.ArgumentParser()

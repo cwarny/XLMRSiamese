@@ -19,11 +19,11 @@ from deeper_nlu.train import Learner, AvgStatsCallback, CudaCallback, SaveModel,
 from deeper_nlu.metric import seq_acc, perplexity
 from deeper_nlu.train import TripletLoss
 
-from .loss import SiameseLoss
-from .sampler import MultinomialSampler
-from .callback import FetchHardestNegatives
-from .model import XLMRobertaSiamese
-from .util import mean_encoded_seq_batch
+from xlmr_siamese.loss import SiameseLoss
+from xlmr_siamese.sampler import MultinomialSampler
+from xlmr_siamese.callback import FetchHardestNegatives
+from xlmr_siamese.model import XLMRobertaSiamese
+from xlmr_siamese.util import mean_encoded_seq_batch
 
 def parse_args():
     parser = argparse.ArgumentParser()

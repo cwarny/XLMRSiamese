@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from transformers import XLMRobertaModel, XLMRobertaForMaskedLM
 from deeper_nlu.nn import MultiLayerPerceptron
 from functools import partial
-from util import mean_encoded_seq_batch
+from .util import mean_encoded_seq_batch
 
 class XLMRobertaSiamese(nn.Module):
     def __init__(self, model_name='xlm-roberta-large', pad_ix=1):
