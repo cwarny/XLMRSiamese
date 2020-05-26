@@ -69,7 +69,7 @@ class CustomTokenizeProcessor(TokenizeProcessor):
 
 def train(gpu, args):
     if args.gpus > 0:
-        device_count = (torch.cuda.device_count() or 1) if args.cuda else 1
+        device_count = torch.cuda.device_count()
         assert args.gpus <= device_count, f"You tried to use {args.gpus} gpus but only {device_count} available"
 
     rank = args.node_rank*args.gpus + gpu
@@ -130,6 +130,8 @@ def train(gpu, args):
     if args.parallel: dist.destroy_process_group()
 
 def main():
+    assert torch.cuda.is_available(), "Please run on CUDA-enabled hardware"
+
     args = parse_args()
 
     root = Path(args.output)
