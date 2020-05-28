@@ -42,7 +42,7 @@ def pad_collate(samples, pad_idx=1, ignore_index=-100, dtype=torch.int64):
         y_ps.append(y_p)
     xs = x_as + x_ps
     ys = y_as + y_ps
-    bs = len(x)
+    bs = len(xs)
     inps = torch.zeros(bs, max_len, dtype=dtype)+pad_idx
     outps = torch.zeros(bs, max_len, dtype=dtype)+ignore_index
     for i,(x,y) in enumerate(zip(xs,ys)):

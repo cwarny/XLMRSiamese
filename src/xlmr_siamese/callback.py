@@ -3,6 +3,8 @@ from deeper_nlu.train import Callback
 from deeper_nlu.util import listify
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+from xlmr_siamese.sampler import DistributedSamplerWrapper
+
 try:
     from apex import amp
     _has_apex = True
@@ -26,11 +28,11 @@ class FetchHardestNegatives(Callback):
         # Compute pairwise distances between every anchor seq and every positive seq.
         # We'll pick negatives based on that distance matrix.
         bs = reps.size(0)
-        a = reps[:bs/2] # anchors
-        p = reps[bs/2:] # positives
+        a = reps[:bs//2] # anchors
+        p = reps[bs//2:] # positives
         dist = torch.cdist(a,reps)
-        dist[range(bs/2),range(bs/2)] = float('inf') # remove self-pairs
-        dist[range(bs/2),range(bs/2,bs)] = float('inf') # remove positive pairs
+        dist[range(bs//2),range(bs//2)] = float('inf') # remove self-pairs
+        dist[range(bs//2),range(bs//2,bs)] = float('inf') # remove positive pairs
         # Pick as negatives the target seqs closest to the anchors ("hardest negs")
         # without them being the actual translations or themselves
         i = dist.argmin(1)
@@ -59,3 +61,5 @@ class DistributedTrainingCallback(Callback):
 
     def begin_fit(self):
         self.run.model = DDP(self.model, device_ids=self.device_ids)
+        self.run.data.train_dl.sampler = DistributedSamplerWrapper(self.run.data.train_dl.sampler)
+        self.run.data.valid_dl.sampler = DistributedSamplerWrapper(self.run.data.valid_dl.sampler)

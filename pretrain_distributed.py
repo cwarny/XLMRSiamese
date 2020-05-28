@@ -25,7 +25,7 @@ from deeper_nlu.util import compose
 from deeper_nlu.train import Learner, AvgStatsCallback, CudaCallback, SaveModel, EarlyStop
 
 # Internal dependencies
-from xlmr_siamese.sampler import MultinomialSampler, DistributedSamplerWrapper
+from xlmr_siamese.sampler import MultinomialSampler
 from xlmr_siamese.loss import SiameseLoss
 from xlmr_siamese.model import XLMRobertaSiamese
 from xlmr_siamese.util import mean_encoded_seq_batch
@@ -68,10 +68,6 @@ class CustomTokenizeProcessor(TokenizeProcessor):
         return self.tokenizer(items)['input_ids']
 
 def train(gpu, args):
-    if args.gpus > 0:
-        device_count = torch.cuda.device_count()
-        assert args.gpus <= device_count, f"You tried to use {args.gpus} gpus but only {device_count} available"
-
     rank = args.node_rank*args.gpus + gpu
     print(f'Running training on rank {rank}.')
     if args.parallel:
@@ -87,19 +83,15 @@ def train(gpu, args):
     opt = partial(Adam, lr=args.learning_rate) # Good old Adam optimizer
     loss_func = SiameseLoss(λ=args.lambda_weight, margin=args.margin) # Loss to backprop on
 
-    MultinomialSampler = partial(MultinomialSampler, alpha=args.alpha)
-    if args.parallel:
-        MultinomialSampler = partial(DistributedSamplerWrapper, MultinomialSampler)
-        SequentialSampler = partial(DistributedSamplerWrapper, SequentialSampler)
-
     # This splits between train and valid sets
     # then processes the inputs
     # then creates data loaders and applies the samplers, 
     # collates the batches, and pads them appropriately.
     db = args.data.to_databunch(
-        bs=args.batch_size/2,
+        bs=args.batch_size//2,
         collate_func=partial(pad_collate, pad_idx=args.tokenizer.pad_token_id),
-        train_sampler=MultinomialSampler, valid_sampler=SequentialSampler
+        train_sampler=partial(MultinomialSampler, alpha=args.alpha), 
+        valid_sampler=SequentialSampler
     )
 
     # Here we define all the callbacks that will be called during the training loop
@@ -134,12 +126,16 @@ def main():
 
     args = parse_args()
 
+    if args.gpus > 0:
+        device_count = torch.cuda.device_count()
+        assert args.gpus <= device_count, f"You tried to use {args.gpus} gpus but only {device_count} available"
+
     root = Path(args.output)
     path = root/datetime.now().strftime('%Y%m%d')/'pretrain'
     path.mkdir(parents=True, exist_ok=True)
-    args.path = path
     with open(path/'hp.json', 'w') as f: 
         json.dump(args.__dict__, f, indent=4)
+    args.path = path
 
     tokenizer = XLMRobertaTokenizer.from_pretrained(args.encoder_name)
     args.tokenizer = tokenizer
