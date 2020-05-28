@@ -1,7 +1,9 @@
 import torch
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data import BatchSampler
+
 from deeper_nlu.train import Callback
 from deeper_nlu.util import listify
-from torch.nn.parallel import DistributedDataParallel as DDP
 
 from xlmr_siamese.sampler import DistributedSamplerWrapper
 
@@ -61,5 +63,7 @@ class DistributedTrainingCallback(Callback):
 
     def begin_fit(self):
         self.run.model = DDP(self.model, device_ids=self.device_ids)
-        self.run.data.train_dl.sampler = DistributedSamplerWrapper(self.run.data.train_dl.sampler)
-        self.run.data.valid_dl.sampler = DistributedSamplerWrapper(self.run.data.valid_dl.sampler)
+        train_sampler = DistributedSamplerWrapper(self.run.data.train_dl.sampler)
+        valid_sampler = DistributedSamplerWrapper(self.run.data.valid_dl.sampler)
+        self.run.data.train_dl.batch_sampler = BatchSampler(train_sampler, self.run.data.train_dl.batch_size, self.run.data.train_dl.drop_last)
+        self.run.data.train_dl.batch_sampler = BatchSampler(valid_sampler, self.run.data.valid_dl.batch_size, self.run.data.valid_dl.drop_last)
