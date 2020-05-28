@@ -17,7 +17,7 @@ Extension of XLM-R with Siamese network and distance-based loss. See [experiment
 
 ## Pre-train
 
-* `python pretrain.py -i data/processed/train.tsv`
+* `python pretrain_distributed.py -i /efs-storage/data/processed/train.tsv -o /efs-storage/models --batch-size 16 --gpus 8`
 
 ## Train
 
